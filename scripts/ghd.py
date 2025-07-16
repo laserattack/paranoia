@@ -18,8 +18,18 @@ class App:
 
     @classmethod
     def main(cls):
-        
         parser = argparse.ArgumentParser(description='GitHub repositories loader')
+
+        def custom_error(message):
+                ColorPrinter.blue(parser.format_help())
+                ColorPrinter.red(f"{message}")
+                sys.exit(1)
+
+        def custom_print_help():
+            ColorPrinter.blue(parser.format_help())
+
+        parser.print_help = custom_print_help
+        parser.error = custom_error
         parser.add_argument('--token', 
                             help='GitHub token with access to all repositories',
                             required=True) # обязательно указать токен
@@ -42,8 +52,9 @@ class App:
             elif args.repos:
                 for repo in args.repos:
                     gd.download_repo_by_name(repo)
+            print()
         except Exception as e:
-            print(f"downloading error: {e}")
+            ColorPrinter.red(f"downloading error: {e}")
             sys.exit(1)
 
 # downloader
