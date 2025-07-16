@@ -73,7 +73,7 @@ class App:
         return parser.parse_args()
 
     @classmethod
-    def main(cls):
+    def main(cls) -> None:
         cls._init_signal_handlers()
         args = cls._args_parse()
 
