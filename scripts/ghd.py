@@ -17,7 +17,7 @@ class App:
     """Основной класс приложения"""
 
     @classmethod
-    def main(cls):
+    def _args_parse(cls) -> argparse.Namespace:
         parser = argparse.ArgumentParser(description='GitHub repositories loader')
 
         def custom_error(message):
@@ -40,7 +40,11 @@ class App:
         group.add_argument('--all',
                          action="store_true",
                          help='Download all repositories')
-        args = parser.parse_args()
+        return parser.parse_args()
+
+    @classmethod
+    def main(cls):
+        args = cls._args_parse()
 
         gd = Downloader(
             args.token, 
