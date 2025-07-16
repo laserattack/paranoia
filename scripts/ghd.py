@@ -31,31 +31,31 @@ class App:
         parser.print_help = custom_print_help
         parser.error = custom_error
         parser.add_argument('--token', 
-                            help='GitHub token with access to all repositories',
+                            help='github token with access to all repositories',
                             required=True) # обязательно указать токен
         group = parser.add_mutually_exclusive_group(required=True) # либо --all, либо --repos
         group.add_argument('--repos',
                          nargs='+',
-                         help='List of repository names to download')
+                         help='list of repository names to download')
         group.add_argument('--all',
                          action="store_true",
-                         help='Download all repositories')
+                         help='download all repositories')
         return parser.parse_args()
 
     @classmethod
     def main(cls):
         args = cls._args_parse()
 
-        gd = Downloader(
+        loader = Downloader(
             args.token, 
             Constants.REPOS_DIR.value,)
 
         try:
             if args.all:
-                gd.download_all_repos()
+                loader.download_all_repos()
             elif args.repos:
                 for repo in args.repos:
-                    gd.download_repo_by_name(repo)
+                    loader.download_repo_by_name(repo)
             print()
         except Exception as e:
             ColorPrinter.red(f"downloading error: {e}")
