@@ -1,20 +1,50 @@
 # Скрипт для скачивание репозиториев с GitHub
 
+from types import FrameType
 from enum import Enum
 import subprocess
 import argparse
 import requests
-import sys, os
+import signal
+import sys
+import os
 
 class Constants(Enum):
     """
     Константы уровня приложения
     """
 
-    REPOS_DIR = "./repos"   # Папка куда будут скачиваться репозитории (создастся сама если ее нет)
+    REPOS_DIR = "./repos" # Папка куда будут скачиваться репозитории (создастся сама если ее нет)
 
 class App:
     """Основной класс приложения"""
+
+    @classmethod
+    def _init_signal_handlers(cls):
+
+        def hide_control_chars() -> None:
+            # Если терминала нет - выход (например если скрипт запустился на сервере)
+            if not sys.stdin.isatty():
+                return
+            if sys.platform != "win32":
+                import termios
+                fd = sys.stdin.fileno()
+                # termios.tcgetattr(fd) считывает текущие атрибуты терминала в attrs
+                attrs = termios.tcgetattr(fd)
+                # attrs[3] соответствует локальным флагам (c_lflag в структуре termios)
+                # ECHOCTL — это флаг, который управляет отображением управляющих символов (например, ^C для Ctrl+C).
+                # ~termios.ECHOCTL инвертирует битовую маску, а &= применяет побитовое И, чтобы сбросить этот флаг
+                attrs[3] &= ~termios.ECHOCTL
+                termios.tcsetattr(fd, termios.TCSANOW, attrs)
+
+        def handle_signal(signum: int, frame: FrameType) -> None:
+            del signum, frame
+            ColorPrinter.red("\nhandle exit signal")
+            sys.exit(1) # Python автоматически пошлёт SIGTERM дочерним процессам
+
+        hide_control_chars()
+        signal.signal(signal.SIGINT, handle_signal)
+        signal.signal(signal.SIGTERM, handle_signal)
 
     @classmethod
     def _args_parse(cls) -> argparse.Namespace:
@@ -44,6 +74,7 @@ class App:
 
     @classmethod
     def main(cls):
+        cls._init_signal_handlers()
         args = cls._args_parse()
 
         loader = Downloader(
@@ -56,10 +87,10 @@ class App:
             elif args.repos:
                 for repo in args.repos:
                     loader.download_repo_by_name(repo)
-            print()
         except Exception as e:
             ColorPrinter.red(f"downloading error: {e}")
-            sys.exit(1)
+        finally:
+            ColorPrinter.blue("\nsee you later!")
 
 # downloader
 
@@ -148,7 +179,7 @@ class Downloader:
                 )
             ColorPrinter.blue(f"downloaded '{repo_name}' from github")
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"git command failed: {e}") from e      
+            raise RuntimeError(f"git command failed: {e}") from e
 
     def _get_repos_info(self) -> list[dict]:
         """
