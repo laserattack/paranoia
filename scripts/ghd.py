@@ -257,6 +257,7 @@ class SignalHandler:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        del exc_type, exc_val, exc_tb
         self.restore_original_handlers()
 
     def _setup_signal_handlers(self) -> None:
