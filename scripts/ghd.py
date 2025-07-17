@@ -22,28 +22,39 @@ class App:
 
     @classmethod
     def _args_parse(cls) -> argparse.Namespace:
-        parser = argparse.ArgumentParser(description='github repositories downloader')
+        parser = argparse.ArgumentParser()
 
-        def custom_error(message):
-                ColorPrinter.blue(parser.format_help())
-                ColorPrinter.red(f"{message}")
-                sys.exit(1)
+        script_name = os.path.basename(__file__)
+
+        usage = \
+f"""
+GitHub Repositories Downloader
+
+Usage examples:
+    Download specific repositories:
+        {script_name} --token YOUR_TOKEN --repos repo1 repo2
+
+    Download all repositories:
+        {script_name} --token YOUR_TOKEN --all
+"""
 
         def custom_print_help():
-            ColorPrinter.blue(parser.format_help())
+            ColorPrinter.blue(usage)
+
+        def custom_error(message):
+                custom_print_help()
+                ColorPrinter.red(f"{message}")
+                sys.exit(1)
 
         parser.print_help = custom_print_help
         parser.error = custom_error
         parser.add_argument('--token', 
-                            help='github token with access to all repositories',
                             required=True) # обязательно указать токен
         group = parser.add_mutually_exclusive_group(required=True) # либо --all, либо --repos
         group.add_argument('--repos',
-                         nargs='+',
-                         help='list of repository names to download')
+                         nargs='+',)
         group.add_argument('--all',
-                         action="store_true",
-                         help='download all repositories')
+                         action="store_true",)
         return parser.parse_args()
 
     @classmethod

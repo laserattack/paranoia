@@ -58,38 +58,27 @@ Usage examples:
 
         parser.print_help = custom_print_help
         parser.error = custom_error
-        parser.add_argument('--token', 
-                            help='codeberg token with access to all repositories',
-                            required=True) # обязательно указать токен
+        parser.add_argument('--token', required=True) # обязательно указать токен
         
         # Основная группа действий (upload/delete)
+        # параметр dest определяет имя атрибута, в котором будет храниться результат выбора подкоманды (upload/delete)
         action_subparsers = parser.add_subparsers(dest='action', required=True)
         
         # Парсер для операций загрузки
-        upload_parser = action_subparsers.add_parser('upload', 
-                                                     help='upload repositories')
+        upload_parser = action_subparsers.add_parser('upload',)
         upload_parser.print_help = custom_print_help
         upload_parser.error = custom_error
         upload_group = upload_parser.add_mutually_exclusive_group(required=True)
-        upload_group.add_argument('--repos', 
-                                  nargs='+', 
-                                  help='list of repository names to upload')
-        upload_group.add_argument('--all', 
-                                  action='store_true', 
-                                  help='upload all repositories')
+        upload_group.add_argument('--repos', nargs='+')
+        upload_group.add_argument('--all', action='store_true')
         
         # Парсер для операций удаления
-        delete_parser = action_subparsers.add_parser('delete', 
-                                                     help='delete repositories')
+        delete_parser = action_subparsers.add_parser('delete',)
         delete_parser.print_help = custom_print_help
         delete_parser.error = custom_error
         delete_group = delete_parser.add_mutually_exclusive_group(required=True)
-        delete_group.add_argument('--repos', 
-                                  nargs='+', 
-                                  help='list of repository names to delete')
-        delete_group.add_argument('--all', 
-                                  action='store_true', 
-                                  help='delete all repositories')
+        delete_group.add_argument('--repos', nargs='+')
+        delete_group.add_argument('--all', action='store_true')
 
         return parser.parse_args()
     
