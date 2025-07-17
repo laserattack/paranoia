@@ -103,6 +103,8 @@ class Downloader:
             "Accept": "application/vnd.github.v3+json"
         }
 
+        self.repos = self._get_repos_info()
+
     def download_all_repos(self) -> None:
         """
         **Скачивает все репозитории**
@@ -110,9 +112,7 @@ class Downloader:
         Если уже есть репо, то обновляет его
         """
 
-        repos = self._get_repos_info()
-
-        for repo in repos:
+        for repo in self.repos:
             self._download_repo(repo)
 
     def download_repo_by_name(self, repo_name: str) -> None:
@@ -122,9 +122,7 @@ class Downloader:
         Если уже есть репо, то обновляет его
         """
 
-        repos = self._get_repos_info()
-
-        for r in repos:
+        for r in self.repos:
             if r["name"] == repo_name:
                 self._download_repo(r)
                 return
