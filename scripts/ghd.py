@@ -48,13 +48,10 @@ Usage examples:
 
         parser.print_help = custom_print_help
         parser.error = custom_error
-        parser.add_argument('--token', 
-                            required=True) # обязательно указать токен
+        parser.add_argument('--token', required=True) # обязательно указать токен
         group = parser.add_mutually_exclusive_group(required=True) # либо --all, либо --repos
-        group.add_argument('--repos',
-                         nargs='+',)
-        group.add_argument('--all',
-                         action="store_true",)
+        group.add_argument('--repos', nargs='+')
+        group.add_argument('--all', action="store_true")
         return parser.parse_args()
 
     @classmethod
