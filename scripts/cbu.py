@@ -146,12 +146,39 @@ class Uploader:
             "Accept": "application/json"
         }
 
-        self.username = self.get_username()
+        self.username = self._get_username()
         self.repos = self._get_repos_info()
+
+    def delete_all_repos(self) -> None:
+        """
+        Удаление всех репозиториев с CodeBerg
+        """
+
+        for r in self.repos:
+            self.delete_repo_by_name(r["name"])
+
+    def delete_repo_by_name(self, repo_name: str) -> None:
+        """
+        **Удаление репозитория по его имени**
+
+        Вернет RuntimeError если что то пошло не так
+        """
+
+        ColorPrinter.blue(f"deleting '{repo_name}' from codeberg...")
+
+        response = requests.delete(
+            f"{self.api_url}/repos/{self.username}/{repo_name}",
+            headers=self.api_headers
+        )
+        
+        if response.status_code != 204:
+            raise RuntimeError(f"failed to delete repository {repo_name}: {response.text}")
+        
+        ColorPrinter.blue(f"deleted '{repo_name}' from сodeberg")
 
     def upload_all_repos(self) -> None:
         """
-        **Закидывает/обновляет на codeberg все репо из указанной папки**
+        Закидывает/обновляет на codeberg все репозитории из папки
         """
 
         if not os.path.isdir(self.target_dir):
@@ -178,10 +205,10 @@ class Uploader:
         # индикатор приватного репо - файл .private в нем 
         is_private = os.path.exists(os.path.join(local_path, ".private"))
 
-        if not self.repo_exists(repo_name):
-            self.create_repo(repo_name, private=is_private)
+        if not self._repo_exists(repo_name):
+            self._create_repo(repo_name, private=is_private)
         else:
-            self.update_repo_visibility(repo_name, is_private)
+            self._update_repo_visibility(repo_name, is_private)
 
         base = self.base_url.replace("https://", f"https://{self.token}@")
         remote_url = f"{base}/{self.username}/{repo_name}.git"
@@ -222,7 +249,7 @@ class Uploader:
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"git command failed: {e}") from e
 
-    def update_repo_visibility(self, repo_name: str, private: bool) -> None:
+    def _update_repo_visibility(self, repo_name: str, private: bool) -> None:
         """
         **Обновляет видимость репозитория**
         
@@ -238,7 +265,7 @@ class Uploader:
         if response.status_code != 200:
             raise RuntimeError(f"failed to update repository visibility: {response.text}")
 
-    def create_repo(self, repo_name: str, private: bool = False) -> dict:
+    def _create_repo(self, repo_name: str, private: bool = False) -> dict:
         """
         **Создает новый репозиторий на codeberg**
         
@@ -262,36 +289,17 @@ class Uploader:
         
         return response.json()
 
-    def delete_all_repos(self) -> None:
-        for r in self.repos:
-            self.delete_repo_by_name(r["name"])
-
-    def delete_repo_by_name(self, repo_name: str) -> None:
+    def _repo_exists(self, repo_name: str) -> bool:
         """
-        **Удаление репозитория по его имени**
-
-        Вернет RuntimeError если что то пошло не так
+        Проверяет существование репозитория на CodeBerg
         """
 
-        ColorPrinter.blue(f"deleting '{repo_name}' from codeberg...")
-
-        response = requests.delete(
-            f"{self.api_url}/repos/{self.username}/{repo_name}",
-            headers=self.api_headers
-        )
-        
-        if response.status_code != 204:
-            raise RuntimeError(f"failed to delete repository {repo_name}: {response.text}")
-        
-        ColorPrinter.blue(f"deleted '{repo_name}' from сodeberg")
-
-    def repo_exists(self, repo_name: str) -> bool:
         for r in self.repos:
             if r["name"] == repo_name:
                 return True
         return False
 
-    def get_username(self) -> str:
+    def _get_username(self) -> str:
         """
         **Получает имя пользователя Codeberg по токену**
 
