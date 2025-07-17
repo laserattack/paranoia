@@ -22,7 +22,7 @@ class App:
 
     @classmethod
     def _args_parse(cls) -> argparse.Namespace:
-        parser = argparse.ArgumentParser(description='GitHub repositories downloader')
+        parser = argparse.ArgumentParser(description='github repositories downloader')
 
         def custom_error(message):
                 ColorPrinter.blue(parser.format_help())

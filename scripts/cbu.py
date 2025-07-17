@@ -19,7 +19,7 @@ class App:
 
     @classmethod
     def _args_parse(cls) -> argparse.Namespace:
-        parser = argparse.ArgumentParser(description='CodeBerg repositories uploader')
+        parser = argparse.ArgumentParser(description='codeberg repositories uploader')
 
         def custom_error(message):
                 ColorPrinter.blue(parser.format_help())
