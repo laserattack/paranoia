@@ -64,11 +64,10 @@ Usage examples:
         SignalHandler(on_exit)
         args = cls._args_parse()
 
-        loader = Downloader(
-            args.token, 
-            Constants.REPOS_DIR.value,)
-
         try:
+            loader = Downloader(
+                args.token, 
+                Constants.REPOS_DIR.value,)
             if args.all:
                 loader.download_all_repos()
             elif args.repos:
