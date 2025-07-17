@@ -1,28 +1,25 @@
-# Скрипт для скачивание репозиториев с GitHub (ghd = github downloader)
+# Скрипт для загрузки репозиториев на CodeBerg (cbu = codeberg uploader)
 
 from types import FrameType
 from typing import Callable
 from enum import Enum
-import subprocess
 import argparse
-import requests
 import signal
 import sys
-import os
 
 class Constants(Enum):
     """
     Константы уровня приложения
     """
 
-    REPOS_DIR = "./repos" # Папка куда будут скачиваться репозитории (создастся сама если ее нет)
+    REPOS_DIR = "./repos" # Папка с репозиториями
 
 class App:
     """Основной класс приложения"""
 
     @classmethod
     def _args_parse(cls) -> argparse.Namespace:
-        parser = argparse.ArgumentParser(description='GitHub repositories downloader')
+        parser = argparse.ArgumentParser(description='CodeBerg repositories uploader')
 
         def custom_error(message):
                 ColorPrinter.blue(parser.format_help())
@@ -35,20 +32,19 @@ class App:
         parser.print_help = custom_print_help
         parser.error = custom_error
         parser.add_argument('--token', 
-                            help='github token with access to all repositories',
+                            help='codeberg token with access to all repositories',
                             required=True) # обязательно указать токен
         group = parser.add_mutually_exclusive_group(required=True) # либо --all, либо --repos
         group.add_argument('--repos',
                          nargs='+',
-                         help='list of repository names to download')
+                         help='list of repository names to upload')
         group.add_argument('--all',
                          action="store_true",
-                         help='download all repositories')
+                         help='upload all repositories')
         return parser.parse_args()
-
+    
     @classmethod
     def main(cls) -> None:
-        
         def on_exit():
             ColorPrinter.red("\nhandle exit signal")
             sys.exit(1)
@@ -56,137 +52,15 @@ class App:
         SignalHandler(on_exit)
         args = cls._args_parse()
 
-        loader = Downloader(
-            args.token, 
-            Constants.REPOS_DIR.value,)
-
         try:
             if args.all:
-                loader.download_all_repos()
+                print("all")
             elif args.repos:
-                for repo in args.repos:
-                    loader.download_repo_by_name(repo)
+                print("repos")
         except Exception as e:
-            ColorPrinter.red(f"downloading error: {e}")
+            ColorPrinter.red(f"uploading error: {e}")
         finally:
             ColorPrinter.blue("\nsee you later!")
-
-# downloader
-
-class Downloader:
-    """
-    Управляет загрузкой репозиториев с GitHub
-    """
-
-    def __init__(self, token: str, target_dir: str) -> None:
-        """
-        Принимает токен GitHub
-        
-        Для корректной работы необходимо чтобы токен имел доступ ко всем репозиториям
-        """
-
-        self.token = token
-        self.target_dir = target_dir
-
-        self.base_url = "https://github.com"
-        self.api_url = "https://api.github.com"
-        self.api_headers = {
-            "Authorization": f"token {self.token}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-
-    def download_all_repos(self) -> None:
-        """
-        **Скачивает все репозитории**
-
-        Если уже есть репо, то обновляет его
-        """
-
-        repos = self._get_repos_info()
-
-        for repo in repos:
-            self._download_repo(repo)
-
-    def download_repo_by_name(self, repo_name: str) -> None:
-        """
-        **Скачивает репозиторий по его имени**
-
-        Если уже есть репо, то обновляет его
-        """
-
-        repos = self._get_repos_info()
-
-        for r in repos:
-            if r["name"] == repo_name:
-                self._download_repo(r)
-                return
-
-        raise RuntimeError(f"repo '{repo_name}' not found")
-
-    def _download_repo(self, repo: dict) -> None:
-        """
-        **Скачивание репозитория**
-
-        Принимает словарь с информацией о репо, который возвращает GitHub API
-        """
-
-        if not os.path.exists(self.target_dir):
-            os.makedirs(self.target_dir, exist_ok=True)
-
-        repo_name = repo["name"]
-        clone_url = repo["clone_url"].replace(
-            "https://",
-            f"https://{self.token}@"
-        )
-        repo_path = os.path.join(self.target_dir, repo_name)
-        
-        try:
-            ColorPrinter.blue(f"downloading '{repo_name}' from github...")
-            if os.path.exists(repo_path):
-                subprocess.run(
-                    ["git", "-C", repo_path, "reset", "--hard"],
-                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                )
-                subprocess.run(
-                    ["git", "-C", repo_path, "pull"],
-                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                )
-            else:
-                subprocess.run(
-                    ["git", "clone", clone_url, repo_path],
-                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                )
-            ColorPrinter.blue(f"downloaded '{repo_name}' from github")
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"git command failed: {e}") from e
-
-    def _get_repos_info(self) -> list[dict]:
-        """
-        **Получает информацию обо всех репозиториях**
-
-        В случае если статус-код ответа не 200 инициирует RuntimeError
-        """
-
-        page, repos = 1, []
-        
-        while True:
-            response = requests.get(
-                f"{self.api_url}/user/repos",
-                headers=self.api_headers,
-                params={"page": page, "per_page": 100}
-            )
-            
-            if response.status_code != 200:
-                raise RuntimeError(f"failed to get repos: {response.text}")
-            
-            items = response.json()
-            if not items:
-                break
-                
-            repos.extend(items)
-            page += 1
-        
-        return repos
 
 # recipes
 
