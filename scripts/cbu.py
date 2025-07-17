@@ -109,7 +109,7 @@ class ColorPrinter:
                 mode.value |= 0x0004
                 kernel32.SetConsoleMode(hStdOut, mode)
             except Exception as e:
-                raise RuntimeError("Failed to enable ANSI colors") from e
+                raise RuntimeError("failed to enable ANSI colors") from e
 
 class SignalHandler:
 
@@ -127,13 +127,6 @@ class SignalHandler:
         signal.signal(signal.SIGINT, self._original_sigint)
         signal.signal(signal.SIGTERM, self._original_sigterm)
 
-    # Код с __enter__ и __exit__ позволяет использовать класс SignalHandler в конструкции with,
-    # что автоматически восстанавливает оригинальные обработчики сигналов при выходе из блока.
-    # with SignalHandler(cleanup):  # Вызывается __enter__
-    # Основной код программы
-    # print("Работаю...")
-    # При выходе из блока автоматически вызовется __exit__ и restore_original_handlers()
-
     def __enter__(self):
         return self
 
@@ -145,22 +138,17 @@ class SignalHandler:
         signal.signal(signal.SIGTERM, self._handle_signal)
 
     def _hide_control_chars(self) -> None:
-        try:
-            # Если терминала нет - выход (например если скрипт запустился на сервере)
-            if not sys.stdin.isatty():
-                return
-            if sys.platform != "win32":
+        if not sys.stdin.isatty():
+            return
+        if sys.platform != "win32":
+            try:
                 import termios
                 fd = sys.stdin.fileno()
-                # termios.tcgetattr(fd) считывает текущие атрибуты терминала в attrs
                 attrs = termios.tcgetattr(fd)
-                # attrs[3] соответствует локальным флагам (c_lflag в структуре termios)
-                # ECHOCTL — это флаг, который управляет отображением управляющих символов (например, ^C для Ctrl+C).
-                # ~termios.ECHOCTL инвертирует битовую маску, а &= применяет побитовое И, чтобы сбросить этот флаг
                 attrs[3] &= ~termios.ECHOCTL
                 termios.tcsetattr(fd, termios.TCSANOW, attrs)
-        except:
-            pass
+            except Exception as e:
+                raise RuntimeError("error while configuring terminal") from e
 
     def _handle_signal(self, signum: int, frame: FrameType) -> None:
         del signum, frame
