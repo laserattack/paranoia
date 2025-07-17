@@ -24,26 +24,73 @@ class App:
     def _args_parse(cls) -> argparse.Namespace:
         parser = argparse.ArgumentParser(description='codeberg repositories uploader')
 
-        def custom_error(message):
-                ColorPrinter.blue(parser.format_help())
-                ColorPrinter.red(f"{message}")
-                sys.exit(1)
+        script_name = os.path.basename(__file__)
+
+        usage = \
+f"""
+CodeBerg Repository Manager
+
+Main commands:
+    upload      Upload repositories to CodeBerg
+    delete      Delete repositories from CodeBerg
+
+Usage examples:
+    Upload specific repositories:
+        {script_name} --token YOUR_TOKEN upload --repos repo1 repo2
+  
+    Upload all repositories:
+        {script_name} --token YOUR_TOKEN upload --all
+  
+    Delete specific repositories:
+        {script_name} --token YOUR_TOKEN delete --repos repo1 repo2
+  
+    Delete all repositories:
+        {script_name} --token YOUR_TOKEN delete --all
+"""
 
         def custom_print_help():
-            ColorPrinter.blue(parser.format_help())
+            ColorPrinter.blue(usage)
+
+        def custom_error(message):
+                custom_print_help()
+                ColorPrinter.red(f"{message}")
+                sys.exit(1)
 
         parser.print_help = custom_print_help
         parser.error = custom_error
         parser.add_argument('--token', 
                             help='codeberg token with access to all repositories',
                             required=True) # обязательно указать токен
-        group = parser.add_mutually_exclusive_group(required=True) # либо --all, либо --repos
-        group.add_argument('--repos',
-                         nargs='+',
-                         help='list of repository names to upload')
-        group.add_argument('--all',
-                         action="store_true",
-                         help='upload all repositories')
+        
+        # Основная группа действий (upload/delete)
+        action_subparsers = parser.add_subparsers(dest='action', required=True)
+        
+        # Парсер для операций загрузки
+        upload_parser = action_subparsers.add_parser('upload', 
+                                                     help='upload repositories')
+        upload_parser.print_help = custom_print_help
+        upload_parser.error = custom_error
+        upload_group = upload_parser.add_mutually_exclusive_group(required=True)
+        upload_group.add_argument('--repos', 
+                                  nargs='+', 
+                                  help='list of repository names to upload')
+        upload_group.add_argument('--all', 
+                                  action='store_true', 
+                                  help='upload all repositories')
+        
+        # Парсер для операций удаления
+        delete_parser = action_subparsers.add_parser('delete', 
+                                                     help='delete repositories')
+        delete_parser.print_help = custom_print_help
+        delete_parser.error = custom_error
+        delete_group = delete_parser.add_mutually_exclusive_group(required=True)
+        delete_group.add_argument('--repos', 
+                                  nargs='+', 
+                                  help='list of repository names to delete')
+        delete_group.add_argument('--all', 
+                                  action='store_true', 
+                                  help='delete all repositories')
+
         return parser.parse_args()
     
     @classmethod
@@ -60,13 +107,20 @@ class App:
                 args.token, 
                 Constants.REPOS_DIR.value,)
 
-            if args.all:
-                loader.upload_all_repos()
-            elif args.repos:
-                for repo in args.repos:
-                    loader.upload_repo_by_name(repo)
+            if args.action == 'upload':
+                if args.all:
+                    loader.upload_all_repos()
+                elif args.repos:
+                    for repo in args.repos:
+                        loader.upload_repo_by_name(repo)
+            elif args.action == 'delete':
+                if args.all:
+                    loader.delete_all_repos()
+                elif args.repos:
+                    for repo in args.repos:
+                        loader.delete_repo_by_name(repo)
         except Exception as e:
-            ColorPrinter.red(f"uploading error: {e}")
+            ColorPrinter.red(f"runtime error: {str(e).rstrip()}")
         finally:
             ColorPrinter.blue("\nsee you later!")
 
@@ -93,6 +147,7 @@ class Uploader:
         }
 
         self.username = self.get_username()
+        self.repos = self._get_repos_info()
 
     def upload_all_repos(self) -> None:
         """
@@ -207,28 +262,35 @@ class Uploader:
         
         return response.json()
 
-    def repo_exists(self, repo_name: str) -> bool:
-        """
-        **Проверяет существование репозитория**
+    def delete_all_repos(self) -> None:
+        for r in self.repos:
+            self.delete_repo_by_name(r["name"])
 
-        - Если репо есть (статус-код ответа 200) - вернет True
-        - Если нет (статус-код ответа 404) - вернет False
-        - Если что-то пошло не так - инициирует RuntimeError
+    def delete_repo_by_name(self, repo_name: str) -> None:
+        """
+        **Удаление репозитория по его имени**
+
+        Вернет RuntimeError если что то пошло не так
         """
 
-        username = self.username
-        response = requests.get(
-            f"{self.api_url}/repos/{username}/{repo_name}",
+        ColorPrinter.blue(f"deleting '{repo_name}' from codeberg...")
+
+        response = requests.delete(
+            f"{self.api_url}/repos/{self.username}/{repo_name}",
             headers=self.api_headers
         )
-
-        if response.status_code == 200:
-            return True
-        elif response.status_code == 404:
-            return False
-        else:
-            raise RuntimeError(f"failed to check repository existence: {response.text}")
         
+        if response.status_code != 204:
+            raise RuntimeError(f"failed to delete repository {repo_name}: {response.text}")
+        
+        ColorPrinter.blue(f"deleted '{repo_name}' from сodeberg")
+
+    def repo_exists(self, repo_name: str) -> bool:
+        for r in self.repos:
+            if r["name"] == repo_name:
+                return True
+        return False
+
     def get_username(self) -> str:
         """
         **Получает имя пользователя Codeberg по токену**
@@ -245,6 +307,33 @@ class Uploader:
             raise RuntimeError("failed to get user info")
         
         return response.json()["login"]
+
+    def _get_repos_info(self) -> list[dict]:
+        """
+        Получает список всех репозиториев
+        
+        Вернет RuntimeError если что то пошло не так
+        """
+        page, repos = 1, []
+        
+        while True:
+            response = requests.get(
+                f"{self.api_url}/user/repos",
+                headers=self.api_headers,
+                params={"page": page, "per_page": 100, "type": "owner"}
+            )
+            
+            if response.status_code != 200:
+                raise RuntimeError(f"failed to get repos: {response.text}")
+            
+            items = response.json()
+            if not items:
+                break
+                
+            repos.extend(items)
+            page += 1
+                
+        return repos
 
 # recipes
 

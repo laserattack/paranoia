@@ -67,7 +67,7 @@ class App:
                 for repo in args.repos:
                     loader.download_repo_by_name(repo)
         except Exception as e:
-            ColorPrinter.red(f"downloading error: {e}")
+            ColorPrinter.red(f"downloading error: {str(e).rstrip()}")
         finally:
             ColorPrinter.blue("\nsee you later!")
 
