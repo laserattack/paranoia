@@ -3,9 +3,12 @@
 from types import FrameType
 from typing import Callable
 from enum import Enum
+import subprocess
+import requests
 import argparse
 import signal
 import sys
+import os
 
 class Constants(Enum):
     """
@@ -53,14 +56,195 @@ class App:
         args = cls._args_parse()
 
         try:
+            loader = Uploader(
+                args.token, 
+                Constants.REPOS_DIR.value,)
+
             if args.all:
-                print("all")
+                loader.upload_all_repos()
             elif args.repos:
-                print("repos")
+                for repo in args.repos:
+                    loader.upload_repo_by_name(repo)
         except Exception as e:
             ColorPrinter.red(f"uploading error: {e}")
         finally:
             ColorPrinter.blue("\nsee you later!")
+
+# uploader
+
+class Uploader:
+    """Управляет загрузкой репозиториев на CodeBerg"""
+
+    def __init__(self, token: str, target_dir: str) -> None:
+        """
+        Принимает токен CodeBerg
+        
+        Для корректной работы необходимо чтобы токен имел доступ ко всем репозиториям и к информации о пользователе
+        """
+
+        self.token = token
+        self.target_dir = target_dir
+
+        self.base_url = "https://codeberg.org"
+        self.api_url = "https://codeberg.org/api/v1"
+        self.api_headers = {
+            "Authorization": f"token {self.token}",
+            "Accept": "application/json"
+        }
+
+        self.username = self.get_username()
+
+    def upload_all_repos(self) -> None:
+        """
+        **Закидывает/обновляет на codeberg все репо из указанной папки**
+        """
+
+        if not os.path.isdir(self.target_dir):
+            raise RuntimeError(f"directory not found: {self.target_dir}")
+
+        for repo in os.listdir(self.target_dir):
+            self.upload_repo_by_name(repo)
+
+    def upload_repo_by_name(self, repo_name: str) -> None:
+        """
+        Закидывает/обновляет репозиторий на codeberg
+        """
+
+        # есть ли вообще такая директория?
+        local_path = os.path.join(self.target_dir, repo_name)
+        if not os.path.isdir(local_path):
+            raise RuntimeError(f"directory not found: {local_path}")
+
+        # эта директория - репозиторий?
+        is_repo = os.path.isdir(os.path.join(local_path, ".git"))
+        if not is_repo:
+            raise RuntimeError(f"the directory is not a repository: {local_path}")
+
+        # индикатор приватного репо - файл .private в нем 
+        is_private = os.path.exists(os.path.join(local_path, ".private"))
+
+        if not self.repo_exists(repo_name):
+            self.create_repo(repo_name, private=is_private)
+        else:
+            self.update_repo_visibility(repo_name, is_private)
+
+        base = self.base_url.replace("https://", f"https://{self.token}@")
+        remote_url = f"{base}/{self.username}/{repo_name}.git"
+
+        try:
+            ColorPrinter.blue(f"uploading '{repo_name}' to codeberg...")
+
+            # получение списка удаленных репозиториев
+            # возвращает что то типо
+            # codeberg
+            # origin
+            remotes = subprocess.run(
+                ["git", "-C", local_path, "remote"],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            ).stdout.splitlines()
+
+            if "codeberg" in remotes:
+                # уже есть codeberg => обновление ссылочки на всякий случай 
+                # (например если репо переименован => старый url не актуален уже)
+                subprocess.run(
+                    ["git", "-C", local_path, "remote", "set-url", "codeberg", remote_url],
+                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                )
+            else:
+                # иначе добавление нового удаленного репо с именем codeberg
+                subprocess.run(
+                    ["git", "-C", local_path, "remote", "add", "codeberg", remote_url],
+                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                )
+
+            # отправка всех веток в удаленный репо
+            subprocess.run(
+                ["git", "-C", local_path, "push", "--force", "--all", "codeberg"],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+
+            ColorPrinter.blue(f"uploaded '{repo_name}' to сodeberg")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"git command failed: {e}") from e
+
+    def update_repo_visibility(self, repo_name: str, private: bool) -> None:
+        """
+        **Обновляет видимость репозитория**
+        
+        В случае если статус-код ответа не 200 инициирует RuntimeError
+        """
+        
+        response = requests.patch(
+            f"{self.api_url}/repos/{self.username}/{repo_name}",
+            headers=self.api_headers,
+            json={"private": private}
+        )
+        
+        if response.status_code != 200:
+            raise RuntimeError(f"failed to update repository visibility: {response.text}")
+
+    def create_repo(self, repo_name: str, private: bool = False) -> dict:
+        """
+        **Создает новый репозиторий на codeberg**
+        
+        В случае если статус-код ответа не 201 инициирует RuntimeError
+        """
+
+        data = {
+            "name": repo_name,
+            "auto_init": False,
+            "private": private
+        }
+        
+        response = requests.post(
+            f"{self.api_url}/user/repos",
+            headers=self.api_headers,
+            json=data
+        )
+        
+        if response.status_code != 201:
+            raise RuntimeError(f"failed to create repo: {response.text}")
+        
+        return response.json()
+
+    def repo_exists(self, repo_name: str) -> bool:
+        """
+        **Проверяет существование репозитория**
+
+        - Если репо есть (статус-код ответа 200) - вернет True
+        - Если нет (статус-код ответа 404) - вернет False
+        - Если что-то пошло не так - инициирует RuntimeError
+        """
+
+        username = self.username
+        response = requests.get(
+            f"{self.api_url}/repos/{username}/{repo_name}",
+            headers=self.api_headers
+        )
+
+        if response.status_code == 200:
+            return True
+        elif response.status_code == 404:
+            return False
+        else:
+            raise RuntimeError(f"failed to check repository existence: {response.text}")
+        
+    def get_username(self) -> str:
+        """
+        **Получает имя пользователя Codeberg по токену**
+
+        В случае если статус-код ответа не 200 инициирует RuntimeError
+        """
+
+        response = requests.get(
+            f"{self.api_url}/user",
+            headers=self.api_headers
+        )
+        
+        if response.status_code != 200:
+            raise RuntimeError("failed to get user info")
+        
+        return response.json()["login"]
 
 # recipes
 
