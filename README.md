@@ -6,3 +6,4 @@
 
 - `scripts/ghd.py` - скрипт для загрузки репозиториев с GitHub
 - `scripts/cbu.py` - скрипт для загрузки репозиториев на CodeBerg
+- `scripts/ark.py` - скрипт для бэкапов
