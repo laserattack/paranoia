@@ -32,7 +32,7 @@ GitHub Repositories Downloader
 
 Usage examples:
     Download specific repositories:
-        {script_name} --token YOUR_TOKEN --repos repo1 repo2
+        {script_name} --token YOUR_TOKEN --repos repo1 repo2 ...
 
     Download all repositories:
         {script_name} --token YOUR_TOKEN --all

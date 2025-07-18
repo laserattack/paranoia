@@ -22,7 +22,7 @@ class App:
 
     @classmethod
     def _args_parse(cls) -> argparse.Namespace:
-        parser = argparse.ArgumentParser(description='codeberg repositories uploader')
+        parser = argparse.ArgumentParser()
 
         script_name = os.path.basename(__file__)
 
@@ -36,13 +36,13 @@ Main commands:
 
 Usage examples:
     Upload specific repositories:
-        {script_name} --token YOUR_TOKEN upload --repos repo1 repo2
+        {script_name} --token YOUR_TOKEN upload --repos repo1 repo2 ...
   
     Upload all repositories:
         {script_name} --token YOUR_TOKEN upload --all
   
     Delete specific repositories:
-        {script_name} --token YOUR_TOKEN delete --repos repo1 repo2
+        {script_name} --token YOUR_TOKEN delete --repos repo1 repo2 ...
   
     Delete all repositories:
         {script_name} --token YOUR_TOKEN delete --all
